@@ -77,6 +77,15 @@ export default function ChatPage() {
     setShowConversation(true);
   }
 
+  async function addBot(bot) {
+    const created = await friends.addBot(bot);
+    if (created) setShowConversation(true);
+  }
+
+  function deleteBot(bot) {
+    return friends.deleteBot(bot, (u) => dmChat.clearThread(u));
+  }
+
   function sendDm() {
     if (!friends.selectedFriend) return;
     const payload = dmComposer.buildPayload();
@@ -127,6 +136,8 @@ export default function ChatPage() {
                 onRemove={(username) =>
                   friends.remove(username, (u) => dmChat.clearThread(u))
                 }
+                onDeleteBot={deleteBot}
+                onBotCreated={addBot}
                 selectedFriend={friends.selectedFriend}
                 onSelectFriend={openFriend}
                 presence={presence}
@@ -153,6 +164,10 @@ export default function ChatPage() {
               listRef={dmListRef}
               onSend={sendDm}
               onBack={() => setShowConversation(false)}
+              onDeleteBot={(bot) => {
+                deleteBot(bot);
+                setShowConversation(false);
+              }}
             />
           ) : (
             <RoomsChat

@@ -1,20 +1,20 @@
 import User from "../models/User.js";
 
 function toPublicUser(u) {
-  return { id: u._id, username: u.username };
+  return { id: u._id, username: u.username, isBot: Boolean(u.isBot) };
 }
 
 async function getUserByUsername(username) {
   const normalized = String(username || "").trim();
   if (!normalized) return null;
-  return await User.findOne({ username: normalized }).select("_id username");
+  return await User.findOne({ username: normalized }).select("_id username isBot");
 }
 
 export async function getFriendsState(req, res) {
   try {
     const me = await User.findById(req.user._id)
       .select("friends friendRequestsIncoming friendRequestsOutgoing")
-      .populate("friends", "_id username")
+      .populate("friends", "_id username isBot")
       .populate("friendRequestsIncoming", "_id username")
       .populate("friendRequestsOutgoing", "_id username");
 
@@ -32,7 +32,10 @@ export async function requestFriend(req, res) {
   try {
     const { username } = req.body ?? {};
     const target = await getUserByUsername(username);
-    if (!target) return res.status(404).json({ message: "User not found" });
+    // Someone else's AI friend is private to them.
+    if (!target || target.isBot) {
+      return res.status(404).json({ message: "User not found" });
+    }
     if (String(target._id) === String(req.user._id)) {
       return res.status(400).json({ message: "You can’t add yourself" });
     }
@@ -171,6 +174,10 @@ export async function removeFriend(req, res) {
     const { username } = req.body ?? {};
     const other = await getUserByUsername(username);
     if (!other) return res.status(404).json({ message: "User not found" });
+    // Unfriending would orphan the bot; deleting it also clears the chat.
+    if (other.isBot) {
+      return res.status(400).json({ message: "Use “Delete AI friend” instead" });
+    }
 
     const meId = req.user._id;
     const otherId = other._id;

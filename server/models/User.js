@@ -34,6 +34,13 @@ const userSchema = new mongoose.Schema(
     friendRequestsOutgoing: [
       { type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] },
     ],
+
+    // AI friends are ordinary users so DMs, ticks and presence work unchanged.
+    // Only their owner is on their friends list, and they can never log in.
+    isBot: { type: Boolean, default: false },
+    botOwner: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    // The system prompt built from the uploaded chat. Never sent to a client.
+    botPersona: { type: String, select: false },
   },
   { timestamps: true },
 );

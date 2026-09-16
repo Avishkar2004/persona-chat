@@ -1,8 +1,17 @@
 import React, { useRef, useState } from "react";
+import AiPill from "../ui/AiPill";
 import Avatar from "../ui/Avatar";
 import Button, { IconButton } from "../ui/Button";
+import CreateBotDialog from "./CreateBotDialog";
 import EmptyState from "./EmptyState";
-import { CheckIcon, ChatIcon, CloseIcon, TrashIcon, UserPlusIcon } from "../ui/icons";
+import {
+  CheckIcon,
+  ChatIcon,
+  CloseIcon,
+  SparklesIcon,
+  TrashIcon,
+  UserPlusIcon,
+} from "../ui/icons";
 import { presenceText } from "../../lib/format";
 import { displayHandle } from "../../lib/usernames";
 
@@ -29,6 +38,8 @@ export default function FriendsSidebar({
   onDecline,
   onCancel,
   onRemove,
+  onDeleteBot,
+  onBotCreated,
   selectedFriend,
   onSelectFriend,
   presence = {},
@@ -36,6 +47,7 @@ export default function FriendsSidebar({
   // Which person is one tap away from being removed (two-step, so nobody
   // deletes a friend by accident).
   const [confirmRemove, setConfirmRemove] = useState(null);
+  const [creatingBot, setCreatingBot] = useState(false);
   const addInputRef = useRef(null);
 
   const incoming = state.incoming || [];
@@ -83,6 +95,22 @@ export default function FriendsSidebar({
             Add
           </Button>
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          block
+          onClick={() => setCreatingBot(true)}
+          className="mt-2"
+        >
+          <SparklesIcon className="h-4 w-4" />
+          Create AI friend
+        </Button>
+        {creatingBot ? (
+          <CreateBotDialog
+            onClose={() => setCreatingBot(false)}
+            onCreated={onBotCreated}
+          />
+        ) : null}
       </div>
 
       <div className="scrollbar-slim min-h-0 flex-1 overflow-y-auto px-3 py-3">
@@ -209,8 +237,9 @@ export default function FriendsSidebar({
                             className="rounded-xl border border-line bg-surface-2 p-2.5"
                           >
                             <p className="text-label text-fg">
-                              Remove {displayHandle(f.username)} and delete this
-                              chat?
+                              {f.isBot
+                                ? `Delete the AI friend ${displayHandle(f.username)} and this chat?`
+                                : `Remove ${displayHandle(f.username)} and delete this chat?`}
                             </p>
                             <div className="mt-2.5 flex gap-2">
                               <Button
@@ -218,13 +247,14 @@ export default function FriendsSidebar({
                                 variant="danger"
                                 disabled={submitting}
                                 onClick={() => {
-                                  onRemove(f.username);
+                                  if (f.isBot) onDeleteBot(f);
+                                  else onRemove(f.username);
                                   setConfirmRemove(null);
                                 }}
                                 className="flex-1"
                               >
                                 <TrashIcon className="h-4 w-4" />
-                                Remove
+                                {f.isBot ? "Delete" : "Remove"}
                               </Button>
                               <Button
                                 size="sm"
@@ -257,8 +287,11 @@ export default function FriendsSidebar({
                               online={here?.online}
                             />
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-msg font-medium text-fg">
-                                {displayHandle(f.username)}
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <span className="truncate text-msg font-medium text-fg">
+                                  {displayHandle(f.username)}
+                                </span>
+                                {f.isBot ? <AiPill /> : null}
                               </span>
                               <span
                                 className={[
@@ -280,7 +313,11 @@ export default function FriendsSidebar({
                             <IconButton
                               size="iconSm"
                               variant="ghost"
-                              label={`Remove ${displayHandle(f.username)}`}
+                              label={
+                                f.isBot
+                                  ? `Delete AI friend ${displayHandle(f.username)}`
+                                  : `Remove ${displayHandle(f.username)}`
+                              }
                               disabled={submitting}
                               onClick={() => setConfirmRemove(f.username)}
                             >

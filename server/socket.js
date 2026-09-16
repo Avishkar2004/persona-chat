@@ -8,6 +8,7 @@ import {
   saveDmMessage,
   saveRoomMessage,
 } from "./services/messages.js";
+import { replyAsBot } from "./services/bot.js";
 import { loadFriendPair, parseCookies } from "./socket/helpers.js";
 import {
   addPresenceConnection,
@@ -28,11 +29,12 @@ function broadcastPresence(io, friendIds, payload) {
 /** Send one socket the current status of everyone on its friends list. */
 async function sendPresenceSnapshot(socket, friendIds) {
   const friends = await User.find({ _id: { $in: friendIds || [] } }).select(
-    "_id username lastSeenAt",
+    "_id username lastSeenAt isBot",
   );
   socket.emit("presenceSnapshot", {
     users: friends.map((friend) => {
-      const online = isUserOnline(friend._id);
+      // AI friends have no sockets, and are always around to reply.
+      const online = friend.isBot || isUserOnline(friend._id);
       return {
         username: friend.username,
         online,
@@ -219,6 +221,13 @@ export function initSocket(httpServer, { corsOrigin }) {
           attachment: safeAttachment,
         });
         io.to(pair.room).emit("dmMessage", message);
+
+        // Not awaited: the reply takes seconds and must not hold up this handler.
+        if (pair.friend.isBot) {
+          replyAsBot({ io, pair }).catch((err) => {
+            console.error("[bot] reply failed:", err?.message || err);
+          });
+        }
       } catch {
         // ignore
       }

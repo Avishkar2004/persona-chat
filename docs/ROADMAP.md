@@ -65,6 +65,43 @@ Cheapest win of the five.
 - `Notification` API for the popup, short audio clip for the sound.
 - Ask for permission on first send, not on page load.
 
+## AI friend
+
+**Status:** done
+
+A bot that texts like a real person, learned from an uploaded WhatsApp export.
+It is an ordinary `User` with `isBot: true`, so bubbles, blue ticks, typing and
+presence all come from the existing friend-DM code.
+
+- **Create:** "Create AI friend" in
+  [`FriendsSidebar.jsx`](../client/src/components/chat/FriendsSidebar.jsx) opens
+  [`CreateBotDialog.jsx`](../client/src/components/chat/CreateBotDialog.jsx).
+  `POST /api/bots/preview` lists senders; `POST /api/bots` builds the bot
+  ([`server/routes/bots.js`](../server/routes/bots.js)).
+- **Parsing:** [`server/services/chatLog.js`](../server/services/chatLog.js)
+  reads both iOS and Android export formats, drops media, deleted and system
+  lines, and redacts links, emails and phone numbers.
+- **Persona:** [`server/services/botProfile.js`](../server/services/botProfile.js)
+  makes one Gemini call for a style profile (recent ~400 exchanges), then adds
+  40 real exchanges spread across the whole log. Stored as `botPersona`
+  (`select: false`); the raw log is never stored. Prompts live in
+  [`botPrompts.js`](../server/services/botPrompts.js).
+- **Replying:** [`server/services/bot.js`](../server/services/bot.js), called
+  from the `dmMessage` socket handler. Marks read, waits 0.8–2 s, types, sends
+  1–4 bubbles paced by length. One reply per room at a time; texts that arrive
+  mid-reply queue one more pass, so a burst gets one answer.
+- **Limits:** 20 bot replies per owner per minute (extras dropped). Bots cannot
+  log in, cannot receive friend requests, and are always shown online.
+- **Config** (`server/.env`): `GEMINI_API_KEY` required. `BOT_ANALYZE_MODEL` and
+  `BOT_REPLY_MODEL` default to `gemini-3.5-flash`. Pro models have no free-tier
+  quota.
+
+Not done yet:
+
+- Rate limit and in-flight state are in memory, so they reset on restart and
+  do not work across several server processes.
+- No way to re-train a bot on a newer export; delete and create again.
+
 ## Known issues (not features)
 
 - **No rate limiting** on the `sendMessage` and `dmMessage` socket handlers in

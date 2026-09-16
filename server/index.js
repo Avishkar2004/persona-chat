@@ -8,11 +8,15 @@ import friendsRouter from "./routes/friends.js";
 import morgan from "morgan"
 import { initSocket } from "./socket.js";
 import uploadsRouter from "./routes/uploads.js";
+import botsRouter from "./routes/bots.js";
 const PORT = process.env.PORT || 8000
 const app = express();
 
 connectDB();
 
+// A pasted WhatsApp export can run to a few MB; every other route keeps the
+// 100kb default. Whichever parser runs first wins, so this must come first.
+app.use("/api/bots", express.json({ limit: "10mb" }));
 app.use(express.json());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
@@ -35,6 +39,7 @@ app.use("/uploads", express.static("uploads"));
 app.use("/api/auth", authRouter);
 app.use("/api/friends", friendsRouter);
 app.use("/api/uploads", uploadsRouter);
+app.use("/api/bots", botsRouter);
 
 const httpServer = http.createServer(app);
 initSocket(httpServer, { corsOrigin });

@@ -36,6 +36,10 @@ router.post("/register", async (req, res) => {
 
     const normalizedEmail = String(email).toLowerCase().trim();
     const normalizedUsername = String(username).trim();
+    // Reserved for AI friend accounts.
+    if (normalizedEmail.endsWith("@bots.local")) {
+      return res.status(400).json({ message: "That email can’t be used" });
+    }
 
     const existing = await User.findOne({
       $or: [{ email: normalizedEmail }, { username: normalizedUsername }],
@@ -73,9 +77,12 @@ router.post("/login", async (req, res) => {
 
     const user = await User.findOne({
       $or: [{ email: maybeEmail }, { username: login }],
-    }).select("+passwordHash email username");
+    }).select("+passwordHash email username isBot");
 
-    if (!user) return res.status(401).json({ message: "Invalid credentials" });
+    // AI friends are accounts, but nobody may sign in as one.
+    if (!user || user.isBot) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
 
     const ok = await bcrypt.compare(String(password), user.passwordHash);
     if (!ok) return res.status(401).json({ message: "Invalid credentials" });

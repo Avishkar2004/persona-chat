@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
+import AiPill from "../ui/AiPill";
 import Avatar from "../ui/Avatar";
 import ConnectionStatus from "./ConnectionStatus";
-import { IconButton } from "../ui/Button";
-import { ArrowLeftIcon, UsersIcon } from "../ui/icons";
+import Button, { IconButton } from "../ui/Button";
+import { ArrowLeftIcon, TrashIcon, UsersIcon } from "../ui/icons";
 
 /**
  * Who (or what) you are looking at. On a phone this is also the way back to
@@ -14,9 +15,14 @@ export default function ChatPanelHeader({
   avatarName,
   avatarOnline,
   isGroup = false,
+  isBot = false,
+  onDeleteBot,
   connected,
   onBack,
 }) {
+  // Deleting an AI friend also wipes the chat, so it takes two taps.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   return (
     <header className="flex flex-none items-center gap-2 border-b border-line bg-surface px-2 py-2 sm:px-3">
       {onBack ? (
@@ -38,14 +44,51 @@ export default function ChatPanelHeader({
         <Avatar name={avatarName} size="md" online={avatarOnline} />
       ) : null}
 
-      <div className="min-w-0 flex-1">
-        <h2 className="truncate text-msg font-semibold text-fg">{title}</h2>
-        {subtitle ? (
-          <p className="truncate text-meta text-fg-subtle">{subtitle}</p>
-        ) : null}
-      </div>
+      {confirmDelete ? (
+        <>
+          <p className="min-w-0 flex-1 text-label text-fg">
+            Delete {title} and this chat?
+          </p>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => {
+              setConfirmDelete(false);
+              onDeleteBot();
+            }}
+            className="flex-none"
+          >
+            Delete
+          </Button>
+          <Button size="sm" onClick={() => setConfirmDelete(false)} className="flex-none">
+            Keep
+          </Button>
+        </>
+      ) : (
+        <>
+          <div className="min-w-0 flex-1">
+            <h2 className="flex min-w-0 items-center gap-1.5 text-msg font-semibold text-fg">
+              <span className="truncate">{title}</span>
+              {isBot ? <AiPill /> : null}
+            </h2>
+            {subtitle ? (
+              <p className="truncate text-meta text-fg-subtle">{subtitle}</p>
+            ) : null}
+          </div>
 
-      <ConnectionStatus connected={connected} />
+          <ConnectionStatus connected={connected} />
+
+          {isBot && onDeleteBot ? (
+            <IconButton
+              variant="ghost"
+              label="Delete AI friend"
+              onClick={() => setConfirmDelete(true)}
+            >
+              <TrashIcon className="h-5 w-5" />
+            </IconButton>
+          ) : null}
+        </>
+      )}
     </header>
   );
 }

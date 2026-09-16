@@ -76,6 +76,20 @@ export const UserPlusIcon = (p) => (
   </Svg>
 );
 
+export const SparklesIcon = (p) => (
+  <Svg {...p}>
+    <path d="M10 3.5 11.6 8a2 2 0 0 0 1.3 1.3l4.6 1.6-4.6 1.6a2 2 0 0 0-1.3 1.3L10 18.5l-1.6-4.6a2 2 0 0 0-1.3-1.3L2.5 11l4.6-1.6A2 2 0 0 0 8.4 8z" />
+    <path d="M18.5 3v4M16.5 5h4M18 16v3M16.5 17.5h3" />
+  </Svg>
+);
+
+export const UploadIcon = (p) => (
+  <Svg {...p}>
+    <path d="M12 15V4M7.5 8.5 12 4l4.5 4.5" />
+    <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+  </Svg>
+);
+
 export const UsersIcon = (p) => (
   <Svg {...p}>
     <circle cx="9" cy="8" r="3.5" />

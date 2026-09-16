@@ -7,6 +7,7 @@ import {
   removeFriend,
   sendFriendRequest,
 } from "../services/friendsApi";
+import { deleteBot as deleteBotRequest } from "../services/botsApi";
 import { displayHandle, normalizeHandle } from "../lib/usernames";
 
 const MIN_USERNAME = 3;
@@ -36,6 +37,7 @@ export function useFriends() {
         }
         return next.friends[0] || null;
       });
+      return next;
     } catch (e) {
       setError(e.message || "Failed to load friends");
     } finally {
@@ -106,6 +108,25 @@ export function useFriends() {
     });
   }
 
+  /** Reload after the create dialog finishes, and open the new AI friend. */
+  async function addBot(bot) {
+    const next = await refresh();
+    const created = next?.friends.find((f) => f.username === bot.username);
+    if (created) {
+      setSelectedFriend(created);
+      setNotice(`${displayHandle(created.username)} is ready. Say hi.`);
+    }
+    return created || null;
+  }
+
+  function deleteBot(bot, onDeleted) {
+    return runAction(async () => {
+      await deleteBotRequest(bot.id);
+      onDeleted?.(bot.username);
+      setNotice(`Deleted the AI friend ${displayHandle(bot.username)}.`);
+    });
+  }
+
   return {
     loading,
     error,
@@ -124,6 +145,8 @@ export function useFriends() {
     decline,
     cancel,
     remove,
+    addBot,
+    deleteBot,
     canRequest: normalizeHandle(addUsername).length >= MIN_USERNAME,
   };
 }

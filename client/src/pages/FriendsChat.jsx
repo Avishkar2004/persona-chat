@@ -23,6 +23,7 @@ export default function FriendsChat({
   listRef,
   onSend,
   onBack,
+  onDeleteBot,
 }) {
   if (!friend) {
     return (
@@ -42,10 +43,19 @@ export default function FriendsChat({
   return (
     <>
       <ChatPanelHeader
+        // A half-finished "Delete?" must not follow you into another chat.
+        key={friend.username}
         title={name}
-        subtitle={status || "Private chat — only the two of you can see this"}
+        subtitle={
+          status ||
+          (friend.isBot
+            ? "AI friend — only you can see this chat"
+            : "Private chat — only the two of you can see this")
+        }
         avatarName={friend.username}
         avatarOnline={presence?.online}
+        isBot={friend.isBot}
+        onDeleteBot={() => onDeleteBot(friend)}
         connected={connected}
         onBack={onBack}
       />
@@ -60,7 +70,9 @@ export default function FriendsChat({
         typingUser={typingUser}
         empty={{
           title: `This is the start of your chat with ${name}`,
-          description: "Say hello — your message will appear right here.",
+          description: friend.isBot
+            ? "This is an AI that texts like the person in the chat you uploaded. Say hi."
+            : "Say hello — your message will appear right here.",
         }}
       />
 

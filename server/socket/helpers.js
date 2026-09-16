@@ -23,7 +23,7 @@ export async function loadFriendPair(meId, friendUsername) {
 
   const [me, friend] = await Promise.all([
     User.findById(meId).select("_id username friends"),
-    User.findOne({ username: safeFriend }).select("_id username friends"),
+    User.findOne({ username: safeFriend }).select("_id username friends isBot"),
   ]);
   if (!me || !friend) return null;
 

@@ -79,10 +79,10 @@ export async function getRoomHistory(roomId) {
   return docs.reverse().map(serializeMessage);
 }
 
-export async function getDmHistory(dmRoomId) {
+export async function getDmHistory(dmRoomId, limit = HISTORY_LIMIT) {
   const docs = await Message.find({ kind: "dm", roomId: dmRoomId })
     .sort({ createdAt: -1 })
-    .limit(HISTORY_LIMIT)
+    .limit(limit)
     .lean();
   return docs.reverse().map(serializeMessage);
 }
