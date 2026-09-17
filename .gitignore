@@ -37,3 +37,7 @@ Desktop.ini
 
 # Misc
 *.tsbuildinfo
+
+# Private data: WhatsApp exports and user uploads
+ChatWithGN/
+server/uploads/

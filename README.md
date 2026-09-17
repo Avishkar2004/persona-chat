@@ -20,7 +20,7 @@ Create / update `server/.env`:
 
 ```env
 PORT=8000
-MONGO_URI=mongodb://localhost:27017/analyzer_db
+MONGO_URI=mongodb://localhost:27017/Persona-Chat
 CLIENT_ORIGIN=http://localhost:3000
 JWT_SECRET=According-to-you
 ```
