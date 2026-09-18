@@ -69,3 +69,37 @@ Notes:
 ## Health check
 
 - `GET /api/health` → `{ ok: true }`
+
+## Deploy (one service)
+
+In production the Express server also serves the React build, so the app, API,
+Socket.IO and auth cookie all share one URL. The root `package.json` has the
+scripts any Node host needs:
+
+- Build command: `npm run build`
+- Start command: `npm start`
+
+Environment variables:
+
+```env
+NODE_ENV=production
+MONGO_URI=<MongoDB Atlas connection string>
+JWT_SECRET=<long random string>
+GEMINI_API_KEY=<your key>
+CLIENT_ORIGIN=https://<your-app-url>
+# Optional: where uploads are stored, e.g. a mounted persistent volume
+UPLOAD_DIR=/data/uploads
+```
+
+For MongoDB Atlas, allow access from anywhere (`0.0.0.0/0`) under Network
+Access, since free hosts have no fixed IP.
+
+### Render (free plan)
+
+1. New → Web Service → connect this GitHub repo
+2. Leave Root Directory empty, set the build and start commands above, pick the Free instance
+3. Add the environment variables above (skip `UPLOAD_DIR`)
+
+The free plan sleeps after 15 minutes idle (the next visit takes about a minute)
+and its disk is wiped whenever it sleeps, restarts or redeploys, so uploaded
+files do not last there.

@@ -1,5 +1,9 @@
+// A production build is served by the API server itself, so it calls its own origin.
+const DEFAULT_API_BASE =
+  process.env.NODE_ENV === "production" ? "" : "http://localhost:8000";
+
 export const API_BASE =
-  process.env.REACT_APP_API_URL?.replace(/\/$/, "") || "http://localhost:8000";
+  process.env.REACT_APP_API_URL?.replace(/\/$/, "") || DEFAULT_API_BASE;
 
 export async function api(path, options = {}) {
   const isFormData =

@@ -8,7 +8,8 @@ export function useSocket() {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const socket = io(API_BASE, {
+    // An empty base must be undefined: io("") does not fall back to the page's origin.
+    const socket = io(API_BASE || undefined, {
       transports: ["websocket"],
       withCredentials: true,
     });

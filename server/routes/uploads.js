@@ -6,8 +6,9 @@ import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = Router();
 
-// Store uploads in `server/uploads/`
-const uploadDir = path.resolve("uploads");
+// Store uploads in `server/uploads/`, or UPLOAD_DIR when a host mounts a
+// persistent volume (a container's own disk is wiped on every deploy).
+export const uploadDir = path.resolve(process.env.UPLOAD_DIR || "uploads");
 fs.mkdirSync(uploadDir, { recursive: true });
 
 const storage = multer.diskStorage({

@@ -7,8 +7,10 @@ import authRouter from "./routes/auth.js";
 import friendsRouter from "./routes/friends.js";
 import morgan from "morgan"
 import { initSocket } from "./socket.js";
-import uploadsRouter from "./routes/uploads.js";
+import uploadsRouter, { uploadDir } from "./routes/uploads.js";
 import botsRouter from "./routes/bots.js";
+import fs from "fs";
+import { fileURLToPath } from "url";
 const PORT = process.env.PORT || 8000
 const app = express();
 
@@ -34,12 +36,22 @@ app.get("/api/health", (req, res) => {
 });
 
 // Serve uploaded images/videos
-app.use("/uploads", express.static("uploads"));
+app.use("/uploads", express.static(uploadDir));
 
 app.use("/api/auth", authRouter);
 app.use("/api/friends", friendsRouter);
 app.use("/api/uploads", uploadsRouter);
 app.use("/api/bots", botsRouter);
+
+// In production the React build is served from here too, so the app, API and
+// auth cookie share one origin. Any other page URL gets index.html for the router.
+const clientBuild = fileURLToPath(new URL("../client/build", import.meta.url));
+if (fs.existsSync(clientBuild)) {
+  app.use(express.static(clientBuild));
+  app.get(/^\/(?!api\/|uploads\/|static\/)/, (req, res) => {
+    res.sendFile("index.html", { root: clientBuild });
+  });
+}
 
 const httpServer = http.createServer(app);
 initSocket(httpServer, { corsOrigin });
