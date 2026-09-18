@@ -1,28 +1,50 @@
-# ChatApp (React + Express + MongoDB)
+# Persona Chat (React + Express + MongoDB)
 
-A simple chat app starter with **cookie-based authentication**and a protected “Chat” page.
+A real-time chat app with rooms, friends and DMs. You can also create an
+**AI friend** from a WhatsApp chat export: it learns how one person in that
+chat texts, then replies to you in a DM the way they would.
+
+## Features
+
+- **Accounts:** sign up / log in with an httpOnly JWT cookie
+- **Rooms:** public `General` and `Help` rooms
+- **Friends:** send, accept, decline, cancel and remove friend requests
+- **DMs:** typing indicator, read receipts (ticks), emoji, and image / video / PDF attachments
+- **Online presence:** a green dot for friends who are online, "Last seen 5 minutes ago" for those who are not
+- **AI friends:** built from a WhatsApp export using Google Gemini
+- **Themes:** Light, Dark or System
+
+Messages are stored in MongoDB and reload when you open a room or DM (last 100
+per conversation).
 
 ## Project structure
 
 - `client/`: React app (CRACO + Tailwind)
-- `server/`: Express API + MongoDB (Mongoose)
+- `server/`: Express API + Socket.IO + MongoDB (Mongoose)
+- `docs/ROADMAP.md`: what is done, what is next, known issues
 
 ## Prerequisites
 
-- Node.js (recommended: latest LTS)
-- MongoDB running locally or a MongoDB connection string
+- Node.js 24
+- MongoDB running locally, or a MongoDB Atlas connection string
+- A Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey) (only needed for AI friends)
 
 ## Setup
 
 ### 1) Server env
 
-Create / update `server/.env`:
+Create `server/.env`:
 
 ```env
 PORT=8000
 MONGO_URI=mongodb://localhost:27017/Persona-Chat
 CLIENT_ORIGIN=http://localhost:3000
-JWT_SECRET=According-to-you
+JWT_SECRET=<any long random string>
+GEMINI_API_KEY=<your key>
+
+# Optional: Gemini models used by AI friends (both default to gemini-3.5-flash)
+# BOT_ANALYZE_MODEL=gemini-3.5-flash
+# BOT_REPLY_MODEL=gemini-3.5-flash
 ```
 
 ### 2) Install dependencies
@@ -50,25 +72,75 @@ npm start
 
 Open `http://localhost:3000`.
 
-## Authentication API
+## AI friends
 
-Base URL: `http://localhost:8000`
+1. In WhatsApp, open a chat → ⋮ → More → Export chat → **Without media**
+2. In the app, open Friends → **Create AI friend**
+3. Upload the `.txt` file (or paste it), pick whose texting style to copy, and give it a name
+4. Open the new friend's DM and send a message
 
-- `POST /api/auth/register`
-  - body: `{ "email": "...", "username": "...", "password": "..." }`
-- `POST /api/auth/login`
-  - body: `{ "emailOrUsername": "...", "password": "..." }`
+How it works:
+
+- Both iOS and Android export formats are read. Media, deleted messages and
+  system lines are dropped; links, emails and phone numbers are redacted.
+- One Gemini call writes a style profile from the recent part of the chat, and
+  40 real exchanges from across the whole chat are added as examples. Only this
+  profile is saved. The raw export is never stored.
+- The person needs at least 30 messages in the export. The file limit is 10 MB.
+- Replies read the message, pause, show "typing…", then send 1 to 4 short
+  bubbles. Limit: 20 AI replies per user per minute.
+- AI friends cannot log in or receive friend requests. Deleting one also
+  deletes its DM history.
+
+WhatsApp exports are private. `ChatWithFriend/` and `server/uploads/` are in
+`.gitignore`, so keep exports in a gitignored folder.
+
+## API
+
+Base URL: `http://localhost:8000`. Every `/api` route except register, login,
+logout and health needs the auth cookie.
+
+### Auth
+
+- `POST /api/auth/register`: body `{ "email", "username", "password" }` (password at least 8 characters)
+- `POST /api/auth/login`: body `{ "emailOrUsername", "password" }`
 - `POST /api/auth/logout`
-- `GET /api/auth/me` (requires auth cookie)
+- `GET /api/auth/me`
 
-Notes:
-- The server sets an httpOnly cookie named `token`.
-- The client uses `fetch(..., { credentials: "include" })` so cookies are sent.
-- Chat messages (rooms + DMs) are stored in MongoDB and reload when you open a room or friend chat (last 100 messages per conversation).
+The server sets an httpOnly cookie named `token`. The client uses
+`fetch(..., { credentials: "include" })` so the cookie is sent.
 
-## Health check
+### Friends
+
+- `GET /api/friends/state`: returns `{ friends, incoming, outgoing }`
+
+These take body `{ "username" }`:
+
+- `POST /api/friends/request`
+- `POST /api/friends/accept`
+- `POST /api/friends/decline`
+- `POST /api/friends/cancel`
+- `POST /api/friends/remove`
+
+### Uploads
+
+- `POST /api/uploads`: multipart field `file` (image, video or PDF, up to 25 MB). Returns `{ url, mime, originalName }`
+- `GET /uploads/<file>`: serves uploaded files (public, no cookie needed)
+
+### AI friends
+
+- `POST /api/bots/preview`: body `{ "chatLog" }`. Returns the senders in the export with message counts
+- `POST /api/bots`: body `{ "chatLog", "personName", "displayName" }`. Creates the AI friend
+- `DELETE /api/bots/:id`
+
+### Health check
 
 - `GET /api/health` → `{ ok: true }`
+
+### Socket.IO
+
+Rooms, DMs, typing, read receipts and presence run over Socket.IO on the same
+port, authenticated by the same cookie. Events are in `server/socket.js`.
 
 ## Deploy (one service)
 
