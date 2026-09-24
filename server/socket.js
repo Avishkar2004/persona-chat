@@ -19,6 +19,15 @@ import {
 /** Every socket a user has open joins this room, so we can reach all their tabs. */
 const userRoom = (userId) => `user:${userId}`;
 
+/** The only rooms a client may join by name. DM and user rooms are joined server side. */
+const PUBLIC_ROOMS = new Set(["general", "help"]);
+
+/** Current friend ids, so a removed friend stops getting presence updates. */
+async function currentFriendIds(userId) {
+  const me = await User.findById(userId).select("friends");
+  return (me?.friends || []).map(String);
+}
+
 /** Tell someone's friends that they came online or went offline. */
 function broadcastPresence(io, friendIds, payload) {
   for (const friendId of friendIds || []) {
@@ -124,26 +133,30 @@ export function initSocket(httpServer, { corsOrigin }) {
 
     socket.on("joinRoom", async ({ roomId } = {}) => {
       const safeRoomId = String(roomId || "").trim();
-      if (!safeRoomId || !socket.data.userId) return;
+      if (!PUBLIC_ROOMS.has(safeRoomId) || !socket.data.userId) return;
 
-      const me = await User.findById(socket.data.userId).select("_id username");
-      if (!me) return;
+      try {
+        const me = await User.findById(socket.data.userId).select("_id username");
+        if (!me) return;
 
-      socket.data.username = me.username;
-      socket.data.roomId = safeRoomId;
-      socket.join(safeRoomId);
+        socket.data.username = me.username;
+        socket.data.roomId = safeRoomId;
+        socket.join(safeRoomId);
 
-      const history = await getRoomHistory(safeRoomId);
-      socket.emit("roomHistory", { roomId: safeRoomId, messages: history });
+        const history = await getRoomHistory(safeRoomId);
+        socket.emit("roomHistory", { roomId: safeRoomId, messages: history });
 
-      io.to(safeRoomId).emit("userJoined", { roomId: safeRoomId, username: me.username });
+        io.to(safeRoomId).emit("userJoined", { roomId: safeRoomId, username: me.username });
+      } catch {
+        // ignore
+      }
     });
 
     socket.on("sendMessage", async ({ roomId, body, attachment } = {}) => {
       const safeRoomId = String(roomId || "").trim();
       const safeBody = String(body || "").trim();
       const safeAttachment = attachmentFromPayload(attachment);
-      if (!safeRoomId || (!safeBody && !safeAttachment)) return;
+      if (!PUBLIC_ROOMS.has(safeRoomId) || (!safeBody && !safeAttachment)) return;
       if (safeBody.length > 2000) return;
       if (!socket.data.userId) return;
 
@@ -162,7 +175,7 @@ export function initSocket(httpServer, { corsOrigin }) {
 
     socket.on("typing", ({ roomId, isTyping } = {}) => {
       const safeRoomId = String(roomId || "").trim();
-      if (!safeRoomId || !socket.data.username) return;
+      if (!PUBLIC_ROOMS.has(safeRoomId) || !socket.data.username) return;
       socket.to(safeRoomId).emit("typing", {
         roomId: safeRoomId,
         username: socket.data.username,
@@ -185,14 +198,8 @@ export function initSocket(httpServer, { corsOrigin }) {
           messages: history,
         });
 
-        const read = await markDmRead(pair.room, pair.me.username);
-        if (read) {
-          io.to(pair.room).emit("dmReadReceipt", {
-            readBy: pair.me.username,
-            messageIds: read.messageIds,
-            readAt: read.readAt,
-          });
-        }
+        // Not marked read here: joining happens on reconnect and while the chat
+        // is hidden. The client sends dmMarkRead once the chat is on screen.
 
         io.to(pair.room).emit("dmUserJoined", {
           roomId: pair.room,
@@ -220,7 +227,11 @@ export function initSocket(httpServer, { corsOrigin }) {
           body: safeBody,
           attachment: safeAttachment,
         });
-        io.to(pair.room).emit("dmMessage", message);
+        // User rooms too, so it arrives even when that chat is not open.
+        io.to(pair.room)
+          .to(userRoom(pair.me._id))
+          .to(userRoom(pair.friend._id))
+          .emit("dmMessage", message);
 
         // Not awaited: the reply takes seconds and must not hold up this handler.
         if (pair.friend.isBot) {
@@ -276,12 +287,16 @@ export function initSocket(httpServer, { corsOrigin }) {
       if (!removePresenceConnection(userId)) return;
 
       const lastSeenAt = new Date();
+      let notify = friendIds;
       try {
         await User.updateOne({ _id: userId }, { $set: { lastSeenAt } });
+        notify = await currentFriendIds(userId);
       } catch {
         // ignore
       }
-      broadcastPresence(io, friendIds, { username, online: false, lastSeenAt });
+      // A refresh can reconnect while those queries run.
+      if (isUserOnline(userId)) return;
+      broadcastPresence(io, notify, { username, online: false, lastSeenAt });
     });
   });
 

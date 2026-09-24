@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import AuthPageLayout, {
   AuthField,
@@ -12,11 +12,14 @@ import AuthPageLayout, {
 
 export default function LoginPage() {
   const nav = useNavigate();
-  const { login } = useAuth();
+  const { user, loading, login } = useAuth();
   const [emailOrUsername, setEmailOrUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Already logged in: skip the form. Hooks above, so this return is safe.
+  if (!loading && user) return <Navigate to="/" replace />;
 
   async function onSubmit(e) {
     e.preventDefault();

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CHAT_ROOMS } from "../lib/constants";
 import { appendMessage } from "../lib/messages";
 
@@ -22,7 +22,9 @@ export function useRoomChat({ socketRef, username }) {
 
   const activeRoomIdRef = useRef(activeRoomId);
   const usernameRef = useRef(username);
-  const typingTimeoutRef = useRef(null);
+  // Separate timers so incoming and outgoing typing never cancel each other.
+  const incomingTypingRef = useRef(null);
+  const outgoingTypingRef = useRef(null);
 
   const activeRoom = CHAT_ROOMS.find((r) => r.id === activeRoomId) ?? CHAT_ROOMS[0];
   const messages = useMemo(
@@ -37,6 +39,11 @@ export function useRoomChat({ socketRef, username }) {
   useEffect(() => {
     usernameRef.current = username;
   }, [username]);
+
+  useEffect(() => () => {
+    clearTimeout(incomingTypingRef.current);
+    clearTimeout(outgoingTypingRef.current);
+  }, []);
 
   useEffect(() => {
     const socket = socketRef.current;
@@ -64,8 +71,8 @@ export function useRoomChat({ socketRef, username }) {
       if (payload.username === usernameRef.current) return;
       setTypingUser(payload.isTyping ? payload.username : "");
       if (payload.isTyping) {
-        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = setTimeout(() => setTypingUser(""), 1200);
+        if (incomingTypingRef.current) clearTimeout(incomingTypingRef.current);
+        incomingTypingRef.current = setTimeout(() => setTypingUser(""), 1200);
       }
     };
 
@@ -84,44 +91,45 @@ export function useRoomChat({ socketRef, username }) {
     };
   }, [socketRef]);
 
-  function joinActiveRoom() {
+  const joinActiveRoom = useCallback(() => {
     const socket = socketRef.current;
     const roomId = String(activeRoomIdRef.current || "").trim();
     if (!socket?.connected || !roomId) return;
     setTypingUser("");
     socket.emit("joinRoom", { roomId });
-  }
+  }, [socketRef]);
 
   useEffect(() => {
     joinActiveRoom();
-  }, [activeRoomId, socketRef]);
+  }, [activeRoomId, joinActiveRoom]);
 
   useEffect(() => {
     const socket = socketRef.current;
     if (!socket) return;
     socket.on("connect", joinActiveRoom);
     return () => socket.off("connect", joinActiveRoom);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [socketRef]);
+  }, [socketRef, joinActiveRoom]);
 
   function emitTyping(isTyping) {
     const socket = socketRef.current;
     if (!socket?.connected) return;
     socket.emit("typing", { roomId: activeRoomIdRef.current, isTyping });
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    if (outgoingTypingRef.current) clearTimeout(outgoingTypingRef.current);
     if (isTyping) {
-      typingTimeoutRef.current = setTimeout(() => {
+      outgoingTypingRef.current = setTimeout(() => {
         socket.emit("typing", { roomId: activeRoomIdRef.current, isTyping: false });
       }, 900);
     }
   }
 
+  /** Returns false when offline, so the caller keeps the draft. */
   function sendMessage({ body, attachment }) {
     const socket = socketRef.current;
-    if (!socket?.connected) return;
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    if (!socket?.connected) return false;
+    if (outgoingTypingRef.current) clearTimeout(outgoingTypingRef.current);
     socket.emit("sendMessage", { roomId: activeRoomId, body, attachment });
     socket.emit("typing", { roomId: activeRoomId, isTyping: false });
+    return true;
   }
 
   return {

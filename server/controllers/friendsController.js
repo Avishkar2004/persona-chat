@@ -110,14 +110,15 @@ export async function acceptFriendRequest(req, res) {
       User.updateOne(
         { _id: meId },
         {
-          $pull: { friendRequestsIncoming: otherId },
+          // Both directions: if they both sent a request, neither is left behind.
+          $pull: { friendRequestsIncoming: otherId, friendRequestsOutgoing: otherId },
           $addToSet: { friends: otherId },
         },
       ),
       User.updateOne(
         { _id: otherId },
         {
-          $pull: { friendRequestsOutgoing: meId },
+          $pull: { friendRequestsOutgoing: meId, friendRequestsIncoming: meId },
           $addToSet: { friends: meId },
         },
       ),

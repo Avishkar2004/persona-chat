@@ -11,14 +11,26 @@ const router = Router();
 export const uploadDir = path.resolve(process.env.UPLOAD_DIR || "uploads");
 fs.mkdirSync(uploadDir, { recursive: true });
 
+// The extension comes from this list, never from the uploaded name: the app is
+// served from this origin, so an uploaded .html or .svg would run as the viewer.
+const EXT_BY_MIME = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/gif": ".gif",
+  "image/webp": ".webp",
+  "video/mp4": ".mp4",
+  "video/webm": ".webm",
+  "video/quicktime": ".mov",
+  "application/pdf": ".pdf",
+};
+
 const storage = multer.diskStorage({
   destination(_req, _file, cb) {
     cb(null, uploadDir);
   },
   filename(_req, file, cb) {
-    const ext = path.extname(file.originalname || "");
-    const safeExt = ext && ext.length < 12 ? ext : "";
-    cb(null, `u_${Date.now()}_${Math.random().toString(16).slice(2)}${safeExt}`);
+    const ext = EXT_BY_MIME[file.mimetype];
+    cb(null, `u_${Date.now()}_${Math.random().toString(16).slice(2)}${ext}`);
   },
 });
 
@@ -28,9 +40,9 @@ const upload = multer({
     fileSize: 25 * 1024 * 1024, // 25MB
   },
   fileFilter(_req, file, cb) {
-    const type = String(file.mimetype || "");
-    const ok = type.startsWith("image/") || type.startsWith("video/") || type === "application/pdf";
-    cb(ok ? null : new Error("Only image/video/pdf allowed"), ok);
+    const ok = Object.hasOwn(EXT_BY_MIME, file.mimetype);
+    const err = Object.assign(new Error("Only PNG, JPEG, GIF, WebP, MP4, WebM, MOV or PDF files are allowed"), { status: 415 });
+    cb(ok ? null : err, ok);
   },
 });
 

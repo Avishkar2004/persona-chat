@@ -117,6 +117,8 @@ async function replyOnce({ io, pair }) {
 
   typing(true);
   const typingSince = Date.now();
+  // Clients hide "typing" after 5s without an update; the model call can take longer.
+  const keepTyping = setInterval(() => typing(true), 3000);
 
   try {
     const text = await generateText({
@@ -144,9 +146,11 @@ async function replyOnce({ io, pair }) {
         body,
         attachment: null,
       });
-      io.to(room).emit("dmMessage", message);
+      // The owner's user room too, so the reply arrives on tabs where this chat is closed.
+      io.to(room).to(`user:${owner._id}`).emit("dmMessage", message);
     }
   } finally {
+    clearInterval(keepTyping);
     typing(false);
   }
 }

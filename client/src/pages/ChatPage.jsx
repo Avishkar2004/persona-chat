@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import ChatLayout from "../components/chat/ChatLayout";
 import ChatSidebarHeader from "../components/chat/ChatSidebarHeader";
@@ -9,6 +9,7 @@ import RoomsChat from "./RoomsChat";
 import { useAutoScroll } from "../hooks/useAutoScroll";
 import { useDmChat } from "../hooks/useDmChat";
 import { useFriends } from "../hooks/useFriends";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { useMessageComposer } from "../hooks/useMessageComposer";
 import { usePresence } from "../hooks/usePresence";
 import { useRoomChat } from "../hooks/useRoomChat";
@@ -26,19 +27,23 @@ export default function ChatPage() {
   const { user } = useAuth();
   const { socketRef, connected } = useSocket();
 
+  // "direct" | "groups"
+  const [tab, setTab] = useState("direct");
+  // Phones show one column at a time; this is which one.
+  const [showConversation, setShowConversation] = useState(false);
+  // Tailwind's `md`: from here up, ChatLayout always shows both columns.
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+
   const friends = useFriends();
   const presence = usePresence({ socketRef, friends: friends.state.friends });
   const dmChat = useDmChat({
     socketRef,
     username: user?.username,
     selectedFriend: friends.selectedFriend,
+    // Only a chat that is actually on screen gets marked read.
+    active: tab === "direct" && (showConversation || isDesktop),
   });
   const roomChat = useRoomChat({ socketRef, username: user?.username });
-
-  // "direct" | "groups"
-  const [tab, setTab] = useState("direct");
-  // Phones show one column at a time; this is which one.
-  const [showConversation, setShowConversation] = useState(false);
 
   const dmComposer = useMessageComposer({
     onTypingChange: (isTyping) => dmChat.emitTyping(isTyping),
@@ -46,6 +51,16 @@ export default function ChatPage() {
   const roomComposer = useMessageComposer({
     onTypingChange: (isTyping) => roomChat.emitTyping(isTyping),
   });
+
+  // The selection also changes without openFriend (adding a bot selects it,
+  // removing the open friend falls back to another), so catch those here too.
+  const draftFriendRef = useRef(friends.selectedFriend?.username);
+  useEffect(() => {
+    const current = friends.selectedFriend?.username;
+    if (draftFriendRef.current === current) return;
+    draftFriendRef.current = current;
+    dmComposer.clearComposer();
+  }, [friends.selectedFriend?.username, dmComposer]);
 
   // `tab` and `showConversation` are in the deps so the feed also jumps to the
   // newest message when a hidden column becomes visible again.
@@ -68,6 +83,14 @@ export default function ChatPage() {
   }
 
   function openFriend(friend) {
+    // One composer serves every chat, so a draft must not follow you to someone
+    // else. Clear it before switching: clearing also sends "stopped typing",
+    // and that belongs to the friend you are leaving.
+    if (friend?.username !== friends.selectedFriend?.username) {
+      dmComposer.clearComposer();
+      // Already cleared, so the effect below has nothing left to do.
+      draftFriendRef.current = friend?.username;
+    }
     friends.setSelectedFriend(friend);
     setShowConversation(true);
   }
@@ -90,14 +113,14 @@ export default function ChatPage() {
     if (!friends.selectedFriend) return;
     const payload = dmComposer.buildPayload();
     if (!payload.hasContent) return;
-    dmChat.sendMessage(payload);
+    if (!dmChat.sendMessage(payload)) return;
     dmComposer.clearComposer();
   }
 
   function sendRoom() {
     const payload = roomComposer.buildPayload();
     if (!payload.hasContent) return;
-    roomChat.sendMessage(payload);
+    if (!roomChat.sendMessage(payload)) return;
     roomComposer.clearComposer();
   }
 

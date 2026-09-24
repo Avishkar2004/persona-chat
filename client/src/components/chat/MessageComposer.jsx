@@ -29,6 +29,8 @@ export default function MessageComposer({
     emojiOpen,
     setEmojiOpen,
     uploading,
+    uploadError,
+    setUploadError,
     pendingAttachment,
     setPendingAttachment,
     fileInputRef,
@@ -40,6 +42,24 @@ export default function MessageComposer({
 
   return (
     <div className="flex-none border-t border-line bg-surface px-3 py-2.5">
+      {uploadError ? (
+        <div
+          role="alert"
+          className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-line bg-danger-soft px-3 py-2 text-label text-danger-text"
+        >
+          <span className="min-w-0">{uploadError}</span>
+          <IconButton
+            size="iconSm"
+            variant="ghost"
+            label="Dismiss"
+            onClick={() => setUploadError("")}
+            className="flex-none"
+          >
+            <CloseIcon className="h-4 w-4" />
+          </IconButton>
+        </div>
+      ) : null}
+
       {pendingAttachment ? (
         <div className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-line bg-surface-2 px-3 py-2">
           <div className="flex min-w-0 items-center gap-2.5">
@@ -88,6 +108,7 @@ export default function MessageComposer({
               }
             }}
             rows={1}
+            maxLength={2000}
             disabled={disabled}
             placeholder={placeholder}
             aria-label={placeholder || "Write a message"}
@@ -118,7 +139,7 @@ export default function MessageComposer({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,video/*"
+          accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/quicktime"
           className="hidden"
           tabIndex={-1}
           onChange={async (e) => {

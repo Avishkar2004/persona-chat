@@ -36,7 +36,19 @@ app.get("/api/health", (req, res) => {
 });
 
 // Serve uploaded images/videos
-app.use("/uploads", express.static(uploadDir));
+app.use(
+  "/uploads",
+  express.static(uploadDir, {
+    setHeaders: (res, filePath) => {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      // Files from before the type allowlist may be .html or .svg; they must not run
+      // scripts. Allowed types skip this: a sandbox also blocks Chrome's PDF viewer.
+      if (!/\.(png|jpg|jpeg|gif|webp|mp4|webm|mov|pdf)$/i.test(filePath)) {
+        res.setHeader("Content-Security-Policy", "sandbox");
+      }
+    },
+  }),
+);
 
 app.use("/api/auth", authRouter);
 app.use("/api/friends", friendsRouter);
@@ -52,6 +64,18 @@ if (fs.existsSync(clientBuild)) {
     res.sendFile("index.html", { root: clientBuild });
   });
 }
+
+// Multer and body-parser errors would otherwise come back as an HTML page,
+// and the client only reads `message` from a JSON body.
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  const tooLarge = err.code === "LIMIT_FILE_SIZE" || err.type === "entity.too.large";
+  const status = tooLarge ? 413 : err.status || err.statusCode || 500;
+  // `expose: false` marks internal errors, e.g. sendFile's file-system paths.
+  const safe = status < 500 && err.expose !== false;
+  const message = tooLarge ? "File or request is too large" : safe ? err.message : "Server error";
+  res.status(status).json({ message });
+});
 
 const httpServer = http.createServer(app);
 initSocket(httpServer, { corsOrigin });
